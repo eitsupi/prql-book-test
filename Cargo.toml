@@ -1,0 +1,14 @@
+[package]
+name = "prql-book-test"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[dependencies]
+prql-compiler = { git = "https://github.com/PRQL/prql", rev = "cac83a49c6a2b86e805e6efbdf49294c308fd7d8", default-features = false }
+pulldown-cmark = { version = "0.9.3", default-features = false }
+ansi-to-html = "0.1.3"
+anstream = "0.3.2"
+strum = {version = "0.24.1", features = ["std", "derive"]}
+pulldown-cmark-to-cmark = "10.0.4"
