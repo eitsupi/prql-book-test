@@ -82,33 +82,10 @@ fn table_of_error(prql: &str, message: &str) -> String {
     .to_string()
 }
 
-fn main() {
-    let s = r#"
-<!-- ---
-# YAML front matter will be supported in the next version of pulldown-cmark.
-# https://github.com/raphlinus/pulldown-cmark/pull/641
-title: Introduction
-sidebar_position: 1
-slug: /
---- -->
-
-Some code blocks.
-
-```prql
-from a
-```
-
-```prql no-eval
-from b
-```
-
-```prql error
-from b d
-```
-"#;
+fn md_to_md(md: &str) -> String {
     let mut eval_prql = false;
     let mut eval_error = false;
-    let parser = Parser::new(s).map(|event| match event {
+    let parser = Parser::new(md).map(|event| match event {
         Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(ref info))) => {
             if info.starts_with("prql") {
                 match prql_block_mode(info) {
@@ -160,5 +137,34 @@ from b d
 
     let mut buf = String::new();
     cmark(parser, &mut buf).unwrap();
-    println!("{}", buf);
+
+    buf
+}
+
+fn main() {
+    let s = r#"
+<!-- ---
+# YAML front matter will be supported in the next version of pulldown-cmark.
+# https://github.com/raphlinus/pulldown-cmark/pull/641
+title: Introduction
+sidebar_position: 1
+slug: /
+--- -->
+
+Some code blocks.
+
+```prql
+from a
+```
+
+```prql no-eval
+from b
+```
+
+```prql error
+from b d
+```
+"#;
+
+    println!("{}", md_to_md(s));
 }
