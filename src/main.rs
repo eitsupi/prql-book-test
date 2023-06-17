@@ -6,6 +6,20 @@ fn compile(prql: &str) -> Result<String, prql_compiler::ErrorMessages> {
     prql_compiler::compile(prql, &prql_compiler::Options::default().no_signature())
 }
 
+enum PrqlBlockMode {
+    Eval,
+    NoEval,
+    NoTest,
+}
+
+fn prql_block_mode(info: &pulldown_cmark::CowStr) -> Option<PrqlBlockMode> {
+    match info.strip_prefix("prql ").unwrap_or_default() {
+        "no-eval" => Some(PrqlBlockMode::NoEval),
+        "no-test" => Some(PrqlBlockMode::NoTest),
+        _ => Some(PrqlBlockMode::Eval),
+    }
+}
+
 fn table_of_comparison(prql: &str, sql: &str) -> String {
     format!(
         r#"
@@ -50,13 +64,26 @@ from b
 "#;
     let mut eval_prql = false;
     let parser = Parser::new(s).map(|event| match event {
-        Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(_))) => {
-            eval_prql = true;
-            Event::Text(pulldown_cmark::CowStr::Borrowed("\n"))
+        Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(ref info))) => {
+            if info.starts_with("prql") {
+                match prql_block_mode(info) {
+                    Some(PrqlBlockMode::Eval) => {
+                        eval_prql = true;
+                        Event::Text(pulldown_cmark::CowStr::Borrowed("\n"))
+                    }
+                    _ => Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(r#"prql title="PRQL""#.into()))),
+                }
+            } else {
+                event
+            }
         }
         Event::End(Tag::CodeBlock(_)) => {
-            eval_prql = false;
-            Event::Text(pulldown_cmark::CowStr::Borrowed("\n"))
+            if eval_prql {
+                eval_prql = false;
+                Event::Text(pulldown_cmark::CowStr::Borrowed("\n"))
+            } else {
+                event
+            }
         }
         Event::Text(ref t) => {
             if eval_prql {
