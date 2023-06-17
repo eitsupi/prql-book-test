@@ -84,6 +84,14 @@ fn table_of_error(prql: &str, message: &str) -> String {
 
 fn main() {
     let s = r#"
+<!-- ---
+# YAML front matter will be supported in the next version of pulldown-cmark.
+# https://github.com/raphlinus/pulldown-cmark/pull/641
+title: Introduction
+sidebar_position: 1
+slug: /
+--- -->
+
 Some code blocks.
 
 ```prql
