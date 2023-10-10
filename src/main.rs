@@ -1,5 +1,6 @@
 use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag};
 use pulldown_cmark_to_cmark::cmark;
+use std::process::Command;
 
 fn compile(prql: &str) -> Result<String, prql_compiler::ErrorMessages> {
     anstream::ColorChoice::Never.write_global();
@@ -8,6 +9,7 @@ fn compile(prql: &str) -> Result<String, prql_compiler::ErrorMessages> {
 
 enum PrqlBlockMode {
     Eval,
+    Table,
     NoEval,
     NoTest,
     Error,
@@ -18,6 +20,7 @@ fn prql_block_mode(info: &pulldown_cmark::CowStr) -> Option<PrqlBlockMode> {
         "no-eval" => Some(PrqlBlockMode::NoEval),
         "no-test" => Some(PrqlBlockMode::NoTest),
         "error" => Some(PrqlBlockMode::Error),
+        "table" => Some(PrqlBlockMode::Table),
         _ => Some(PrqlBlockMode::Eval),
     }
 }
@@ -85,12 +88,17 @@ fn table_of_error(prql: &str, message: &str) -> String {
 fn md_to_md(md: &str) -> String {
     let mut eval_prql = false;
     let mut eval_error = false;
+    let mut eval_table = false;
     let parser = Parser::new(md).map(|event| match event {
         Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(ref info))) => {
             if info.starts_with("prql") {
                 match prql_block_mode(info) {
                     Some(PrqlBlockMode::Eval) => {
                         eval_prql = true;
+                        Event::Text(pulldown_cmark::CowStr::Borrowed("\n"))
+                    }
+                    Some(PrqlBlockMode::Table) => {
+                        eval_table = true;
                         Event::Text(pulldown_cmark::CowStr::Borrowed("\n"))
                     }
                     Some(PrqlBlockMode::Error) => {
@@ -106,8 +114,9 @@ fn md_to_md(md: &str) -> String {
             }
         }
         Event::End(Tag::CodeBlock(_)) => {
-            if eval_prql | eval_error {
+            if eval_prql | eval_table | eval_error {
                 eval_prql = false;
+                eval_table = false;
                 eval_error = false;
                 Event::Text(pulldown_cmark::CowStr::Borrowed("\n"))
             } else {
@@ -120,6 +129,14 @@ fn md_to_md(md: &str) -> String {
             if eval_prql {
                 let sql = compile(&prql).unwrap();
                 Event::Html(table_of_comparison(&prql, &sql).into())
+            } else if eval_table {
+                let sql = compile(&prql).unwrap();
+                let output = Command::new("duckdb")
+                    .args(["-markdown", "-c", &sql])
+                    .output()
+                    .expect("faild");
+                let table = String::from_utf8(output.stdout).unwrap();
+                Event::Html(table.into())
             } else if eval_error {
                 let error_message = match result {
                     Ok(sql) => {
@@ -163,6 +180,27 @@ from b
 
 ```prql error
 from b d
+```
+
+```prql table
+prql target:sql.duckdb
+
+from [
+  {time_id=1, value=15},
+  {time_id=2, value=11},
+  {time_id=3, value=16},
+  {time_id=4, value=9},
+  {time_id=7, value=20},
+  {time_id=8, value=22},
+]
+window rows:-2..0 (
+  sort time_id
+  derive {sma3rows = average value}
+)
+window range:-2..0 (
+  sort time_id
+  derive {sma3range = average value}
+)
 ```
 "#;
 
